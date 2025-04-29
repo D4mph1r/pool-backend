@@ -23,14 +23,14 @@ const startServer = async () => {
         // @ts-ignore
         app.post('/', async (req, res) => {
             try {
-                const { pairs, fromdate, todate } = req.body;
+                const { pairs, from, to } = req.body;
                 const data: any[] = [];
 
                 // const pairs = "WBTCe-WETHe,SBTC-WBTCe";
                 // const data: any[] = [];
 
-                const fromDate = BigInt(fromdate);
-                const toDate = BigInt(todate);
+                const fromDate = BigInt(from);
+                const toDate = BigInt(to);
 
                 console.log(process.env.POOL_RESERVE_ADDRESS);
 
