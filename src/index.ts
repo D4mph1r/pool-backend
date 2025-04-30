@@ -1,9 +1,10 @@
-// @ts-nocheck
+//@ts-nocheck
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { AptosClient } from "aptos";
 import { TPoolObject, TPools, TSenderEntries } from "./types";
+import axios from "axios";
 
 dotenv.config();
 
@@ -18,6 +19,19 @@ const NODE_URL = "https://mainnet.movementnetwork.xyz/v1";
 const client = new AptosClient(NODE_URL);
 
 
+const coinsMapping = {
+    "wbtce": "wrapped-bitcoin",
+    "rseth": "kelp-dao-restaked-eth",
+    "wethe": "weth",
+    "usdte": "tether",
+    "usdce": "usd-coin",
+    "stbtc": "lorenzo-stbtc",
+    "sbtc": "lorenzo-stbtc",
+    "weeth": "wrapped-eeth",
+    "solvbtc": "solv-btc",
+    "move": "movement",
+},
+
 const startServer = async () => {
     try {
         // @ts-ignore
@@ -26,18 +40,14 @@ const startServer = async () => {
                 const { pairs, from, to } = req.body;
                 const data: any[] = [];
 
-                // const pairs = "WBTCe-WETHe,SBTC-WBTCe";
-                // const data: any[] = [];
+                const coins = (await axios.get("https://api.liquidswap.com/coins/registered?networkId=126")).data;
+                const prices = (await axios.get("https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=movement,movement,tether,usd-coin,weth,wrapped-bitcoin,solv-btc,lombard-staked-btc,lorenzo-stbtc,lorenzo-wrapped-bitcoin,renzo-restaked-eth,kelp-dao-restaked-eth,wrapped-eeth,frax-usd,staked-frax-usd,ethena-usde,ethena-staked-usde")).data;
+
+                // console.log("prices", prices);
 
                 const fromDate = BigInt(from);
                 const toDate = BigInt(to);
-
-                console.log(process.env.POOL_RESERVE_ADDRESS);
-
                 const resources = await client.getAccountResources(process.env.POOL_RESERVE_ADDRESS);
-
-                console.log(resources.length);
-
 
                 let filteredResources = [];
                 if (pairs) {
@@ -55,15 +65,25 @@ const startServer = async () => {
                         });
                     }
 
-                    console.log(filteredResources);
-
-
                     if (filteredResources) {
-                        for await (const resource of filteredResources) {
+                        for (const resource of filteredResources) {
 
                             const poolObj: TPoolObject = {
                                 [resource.pool]: []
                             };
+                            const tokenX = resource.pool.split('-')[0].toLowerCase();
+                            const tokenY = resource.pool.split('-')[1].toLowerCase();
+
+                            const tokenXDecimals = coins.find(coin => coin.symbol.toLowerCase().replace(".", "") === tokenX)?.decimals;
+                            const tokenYDecimals = coins.find(coin => coin.symbol.toLowerCase().replace(".", "") === tokenY)?.decimals;
+
+                            const xDenominator = 10 ** tokenXDecimals;
+                            const yDenominator = 10 ** tokenYDecimals;
+
+                            const priceX = prices[coinsMapping[tokenX]].usd;
+                            const priceY = prices[coinsMapping[tokenY]].usd;
+
+                            // console.log({ tokenX, tokenXDecimals, tokenY, tokenYDecimals, xDenominator, yDenominator });
 
                             const liquidityAddedEvents = await client.getEventsByCreationNumber(
                                 resource.data.liquidity_added_handle.guid.id.addr,
@@ -74,14 +94,22 @@ const startServer = async () => {
                                 resource.data.liquidity_removed_handle.guid.id.creation_num
                             )
 
-                            for await (const add of liquidityAddedEvents) {
+                            for (const add of liquidityAddedEvents) {
                                 const tx = await client.getTransactionByVersion(add.version);
                                 const txTimestamp = BigInt(tx.timestamp);
-                                console.log(tx.vm_status);
-
                                 if (tx.vm_status === "Executed successfully") {
-
                                     if (txTimestamp >= fromDate && txTimestamp <= toDate) {
+
+                                        console.log(prices[coinsMapping[tokenX]], tokenX)
+                                        console.log(prices[coinsMapping[tokenY]], tokenY)
+
+                                        add.data.added_x_val = Number(BigInt(add.data.added_x_val)) / Number(xDenominator);
+                                        add.data.added_y_val = Number(BigInt(add.data.added_y_val)) / Number(yDenominator);
+
+                                        add.data.usd_x = add.data.added_x_val * priceX;
+                                        add.data.usd_y = add.data.added_y_val * priceY;
+
+                                        add.data.usd = add.data.usd_x + add.data.usd_y;
 
                                         const exists = poolObj[resource.pool].some(obj => tx.sender in obj);
 
@@ -90,7 +118,6 @@ const startServer = async () => {
                                             senderObj = {
                                                 [tx.sender]: []
                                             };
-
                                             senderObj[tx.sender].push({
                                                 sender: tx.sender,
                                                 data: add.data,
@@ -108,18 +135,25 @@ const startServer = async () => {
                                         }
                                     }
                                 }
-
                             }
 
-
-
-                            for await (const remove of liquidityRemovedEvents) {
+                            for (const remove of liquidityRemovedEvents) {
                                 const tx = await client.getTransactionByVersion(remove.version);
                                 const txTimestamp = BigInt(tx.timestamp);
-                                console.log(tx.vm_status);
-
                                 if (tx.vm_status === "Executed successfully") {
                                     if (txTimestamp >= fromDate && txTimestamp <= toDate) {
+
+                                        console.log(prices[coinsMapping[tokenX]], tokenX)
+                                        console.log(prices[coinsMapping[tokenY]], tokenY)
+
+                                        remove.data.returned_x_val = Number(BigInt(remove.data.returned_x_val)) / Number(xDenominator);
+                                        remove.data.returned_y_val = Number(BigInt(remove.data.returned_y_val)) / Number(yDenominator);
+
+                                        remove.data.usd_x = remove.data.returned_x_val * priceX;
+                                        remove.data.usd_y = remove.data.returned_y_val * priceY;
+
+                                        remove.data.usd = remove.data.usd_x + remove.data.usd_y;
+
                                         const exists = poolObj[resource.pool].some(obj => tx.sender in obj);
 
                                         let senderObj: TSenderEntries;
@@ -146,10 +180,7 @@ const startServer = async () => {
                                         }
                                     }
                                 }
-
                             }
-
-
                             data.push(poolObj);
                         }
                     }
@@ -189,8 +220,6 @@ const startServer = async () => {
             filteredResources.forEach((r) => {
                 const type = r.type.replace(/[<> ]/g, '');
                 const xyz = type.split("LiquidityPool")[1].split(',');
-
-                console.log(xyz);
 
                 if (xyz.length === 3) {
                     const tokenX = xyz[0].split('::')[2];
