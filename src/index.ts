@@ -30,6 +30,7 @@ const coinsMapping = {
     "weeth": "wrapped-eeth",
     "solvbtc": "solv-btc",
     "move": "movement",
+    "aptoscoin": "movement"
 },
 
 const startServer = async () => {
@@ -55,8 +56,8 @@ const startServer = async () => {
                     const allPairs = pairs.split(",");
 
                     for (const p of allPairs) {
-                        const tokenX = p.split("-")[0];
-                        const tokenY = p.split("-")[1];
+                        const tokenX = p.split("-")[0] === "Move" ? "AptosCoin" : p.split("-")[0];
+                        const tokenY = p.split("-")[1] === "Move" ? "AptosCoin" : p.split("-")[1];
 
                         resources.filter((t) => {
                             if (t.type.includes("liquidity_pool::EventsStore") && t.type.toLowerCase().includes(`::${tokenX.toLowerCase()}`) && t.type.toLowerCase().includes(`::${tokenY.toLowerCase()}`)) {
@@ -74,14 +75,16 @@ const startServer = async () => {
                             const tokenX = resource.pool.split('-')[0].toLowerCase();
                             const tokenY = resource.pool.split('-')[1].toLowerCase();
 
-                            const tokenXDecimals = coins.find(coin => coin.symbol.toLowerCase().replace(".", "") === tokenX)?.decimals;
-                            const tokenYDecimals = coins.find(coin => coin.symbol.toLowerCase().replace(".", "") === tokenY)?.decimals;
+                            const tokenXDecimals = coins.find(coin => coin.symbol.toLowerCase().replace(".", "") === tokenX)?.decimals || 6;
+                            const tokenYDecimals = coins.find(coin => coin.symbol.toLowerCase().replace(".", "") === tokenY)?.decimals || 6;
+
+                            console.log({ tokenXDecimals, tokenYDecimals });
 
                             const xDenominator = 10 ** tokenXDecimals;
                             const yDenominator = 10 ** tokenYDecimals;
 
-                            const priceX = prices[coinsMapping[tokenX]].usd;
-                            const priceY = prices[coinsMapping[tokenY]].usd;
+                            const priceX = prices[coinsMapping[tokenX]]?.usd || 0;
+                            const priceY = prices[coinsMapping[tokenY]]?.usd || 0;
 
                             // console.log({ tokenX, tokenXDecimals, tokenY, tokenYDecimals, xDenominator, yDenominator });
 
@@ -103,13 +106,13 @@ const startServer = async () => {
                                         console.log(prices[coinsMapping[tokenX]], tokenX)
                                         console.log(prices[coinsMapping[tokenY]], tokenY)
 
-                                        add.data.added_x_val = Number(BigInt(add.data.added_x_val)) / Number(xDenominator);
-                                        add.data.added_y_val = Number(BigInt(add.data.added_y_val)) / Number(yDenominator);
+                                        add.data.added_x_val = (Number(BigInt(add.data.added_x_val)) / Number(xDenominator)).toFixed(8);
+                                        add.data.added_y_val = (Number(BigInt(add.data.added_y_val)) / Number(yDenominator)).toFixed(8);
 
                                         add.data.usd_x = add.data.added_x_val * priceX;
                                         add.data.usd_y = add.data.added_y_val * priceY;
 
-                                        add.data.usd = add.data.usd_x + add.data.usd_y;
+                                        add.data.usd = (add.data.usd_x + add.data.usd_y).toFixed(8);
 
                                         const exists = poolObj[resource.pool].some(obj => tx.sender in obj);
 
@@ -146,13 +149,13 @@ const startServer = async () => {
                                         console.log(prices[coinsMapping[tokenX]], tokenX)
                                         console.log(prices[coinsMapping[tokenY]], tokenY)
 
-                                        remove.data.returned_x_val = Number(BigInt(remove.data.returned_x_val)) / Number(xDenominator);
-                                        remove.data.returned_y_val = Number(BigInt(remove.data.returned_y_val)) / Number(yDenominator);
+                                        remove.data.returned_x_val = (Number(BigInt(remove.data.returned_x_val)) / Number(xDenominator)).toFixed(8);
+                                        remove.data.returned_y_val = (Number(BigInt(remove.data.returned_y_val)) / Number(yDenominator)).toFixed(8);
 
                                         remove.data.usd_x = remove.data.returned_x_val * priceX;
                                         remove.data.usd_y = remove.data.returned_y_val * priceY;
 
-                                        remove.data.usd = remove.data.usd_x + remove.data.usd_y;
+                                        remove.data.usd = (remove.data.usd_x + remove.data.usd_y).toFixed(8);
 
                                         const exists = poolObj[resource.pool].some(obj => tx.sender in obj);
 
@@ -227,8 +230,8 @@ const startServer = async () => {
                     const curve = xyz[2].split('::')[2];
 
                     pools.push({
-                        tokenX,
-                        tokenY,
+                        tokenX: tokenX === "AptosCoin" ? "Move" : tokenX,
+                        tokenY: tokenY === "AptosCoin" ? "Move" : tokenY,
                         curve
                     })
                 }
