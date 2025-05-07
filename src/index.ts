@@ -38,7 +38,7 @@ const startServer = async () => {
         // @ts-ignore
         app.post('/', async (req, res) => {
             try {
-                const { pairs, from, to } = req.body;
+                const { pairs, from, to, min, max } = req.body;
                 const data: any[] = [];
 
                 const coins = (await axios.get("https://api.liquidswap.com/coins/registered?networkId=126")).data;
@@ -187,21 +187,28 @@ const startServer = async () => {
                             data.push(poolObj);
                         }
                     }
-                    console.dir(data, { depth: null })
                 }
 
-                const sorted = data.map(pool => {
-                    const [poolName, users] = Object.entries(pool)[0];
-                    const sortedUsers = users.map(user => {
-                        const [address, transactions] = Object.entries(user)[0];
-                        const sortedTransactions = transactions.sort((a, b) => BigInt(a.timestamp) > BigInt(b.timestamp) ? 1 : -1);
-                        return { [address]: sortedTransactions };
-                    });
-                    return { [poolName]: sortedUsers };
-                });
+                console.dir(data, { depth: null })
+
+
+                // console.log("GASDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDd");
+                
+                // const sorted = data.map(pool => {
+                //     const [poolName, users] = Object.entries(pool)[0];
+                //     const sortedUsers = users.map(user => {
+                //         const [address, transactions] = Object.entries(user)[0];
+                //         const sortedTransactions = transactions.sort((a, b) => BigInt(a.timestamp) > BigInt(b.timestamp) ? 1 : -1);
+                //         return { [address]: sortedTransactions };
+                //     });
+                //     return { [poolName]: sortedUsers };
+                // });
+
+                // console.dir(sorted, { depth: null })
+
 
                 res.status(200).json({
-                    data: sorted
+                    data: data
                 });
             } catch (error) {
                 console.log(error);
