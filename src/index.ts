@@ -195,8 +195,6 @@ const startServer = async () => {
                 console.dir(data, { depth: null })
 
 
-                // console.log("GASDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDd");
-
                 // const sorted = data.map(pool => {
                 //     const [poolName, users] = Object.entries(pool)[0];
                 //     const sortedUsers = users.map(user => {
