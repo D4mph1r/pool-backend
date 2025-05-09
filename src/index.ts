@@ -15,7 +15,10 @@ app.use(express.json());
 app.use(cors());
 
 
-const NODE_URL = "https://mainnet.movementnetwork.xyz/v1";
+const NODE_URL = process.env.MOVEMENT_RPC;
+const liquidSwapApi = process.env.LIQUIDSWAP_API;
+const pricesApi = process.env.PRICES_API;
+
 const client = new AptosClient(NODE_URL);
 
 
@@ -41,8 +44,8 @@ const startServer = async () => {
                 const { pairs, from, to, min, max } = req.body;
                 const data: any[] = [];
 
-                const coins = (await axios.get("https://api.liquidswap.com/coins/registered?networkId=126")).data;
-                const prices = (await axios.get("https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=movement,movement,tether,usd-coin,weth,wrapped-bitcoin,solv-btc,lombard-staked-btc,lorenzo-stbtc,lorenzo-wrapped-bitcoin,renzo-restaked-eth,kelp-dao-restaked-eth,wrapped-eeth,frax-usd,staked-frax-usd,ethena-usde,ethena-staked-usde")).data;
+                const coins = (await axios.get(liquidSwapApi)).data;
+                const prices = (await axios.get(pricesApi)).data;
 
                 // console.log("prices", prices);
 
@@ -193,7 +196,7 @@ const startServer = async () => {
 
 
                 // console.log("GASDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDd");
-                
+
                 // const sorted = data.map(pool => {
                 //     const [poolName, users] = Object.entries(pool)[0];
                 //     const sortedUsers = users.map(user => {
@@ -223,7 +226,7 @@ const startServer = async () => {
             let pools: TPools[] = [];
             const resources = await client.getAccountResources(process.env.POOL_RESERVE_ADDRESS);
             const filteredResources = resources.filter((r) => {
-                return r.type.includes("0xd5367fdfa219cb0a108c7751cdbfbb02bfcb71ea932c33007b10a05ae5502500::liquidity_pool::LiquidityPool")
+                return r.type.includes(`${process.env.MAIN_POOL_ADDRESS}::liquidity_pool::LiquidityPool`)
             });
             console.log(filteredResources.length);
 
