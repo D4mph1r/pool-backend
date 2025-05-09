@@ -20,7 +20,7 @@ const liquidSwapApi = process.env.LIQUIDSWAP_API;
 const pricesApi = process.env.PRICES_API;
 
 const client = new AptosClient(NODE_URL);
-
+const MICRO_SECONDS_PER_DAY = 1_000_000 * 60 * 60 * 24;
 
 const coinsMapping = {
     "wbtce": "wrapped-bitcoin",
@@ -207,9 +207,112 @@ const startServer = async () => {
 
                 // console.dir(sorted, { depth: null })
 
+                let rows = [];
+                let count = 0;
+                let totalRewards = 0;
+                data.forEach((e) => {
+                    const pool = Object.keys(e)[0];
+                    console.log('pool', pool);
+
+                    Object.values(e)[0].forEach((x) => {
+                        let lastRowWhat = '';
+                        let lastRowTokenX = 0;
+                        let lastRowTokenY = 0;
+                        let lastRowUsd = 0;
+                        let lastRowTimestamp = 0;
+                        let nextRowTimestamp = 0;
+                        let reward = 0;
+                        let totalRewardPerAddress = 0;
+                        let sender = '';
+
+                        Object.values(x).map((y) => {
+                            let c = 0;
+                            totalRewardPerAddress = 0;
+                            //@ts-ignore
+                            let allRecords = [...y];
+                            //@ts-ignore
+                            y.map((z) => {
+                                // console.log(allRecords);
+                                lastRowTimestamp = Number(z.timestamp);
+                                nextRowTimestamp = allRecords[c + 1]?.timestamp ? Number(allRecords[c + 1].timestamp) : to;
+                                lastRowWhat = z.data.lp_tokens_received ? 'add' : 'remove';
+
+                                lastRowTokenX = z.data.lp_tokens_received
+                                    ? lastRowWhat == 'add'
+                                        ? Number(z.data.added_x_val) + lastRowTokenX
+                                        : Number(z.data.added_x_val)
+                                    : lastRowWhat == 'remove'
+                                        ? Math.abs(Number(z.data.returned_x_val) - lastRowTokenX)
+                                        : Number(z.data.returned_x_val);
+
+                                lastRowTokenY = z.data.lp_tokens_received
+                                    ? lastRowWhat == 'add'
+                                        ? Number(z.data.added_y_val) + lastRowTokenY
+                                        : Number(z.data.added_y_val)
+                                    : lastRowWhat == 'remove'
+                                        ? Math.abs(Number(z.data.returned_y_val) - lastRowTokenY)
+                                        : Number(z.data.returned_y_val);
+
+                                lastRowUsd = z.data.lp_tokens_received
+                                    ? lastRowWhat == 'add'
+                                        ? Number(z.data.usd) + lastRowUsd
+                                        : Number(z.data.usd)
+                                    : lastRowWhat == 'remove'
+                                        ? Math.abs(Number(z.data.usd) - lastRowUsd)
+                                        : Number(z.data.usd);
+
+                                reward = 0;
+                                sender = '';
+
+                                const diffMicroseconds = Math.abs(lastRowTimestamp - nextRowTimestamp);
+
+                                const diffDays = diffMicroseconds / MICRO_SECONDS_PER_DAY;
+
+                                console.log(`Difference in days: ${diffDays}`);
+
+                                if (lastRowUsd >= min && lastRowUsd <= max) {
+                                    reward = diffDays * lastRowUsd;
+                                } else if (lastRowUsd >= max) {
+                                    reward = diffDays * max;
+                                }
+                                sender = z.sender;
+                                rows.push({
+                                    id: count,
+                                    sender: sender,
+                                    pool: pool,
+                                    tokenX: lastRowTokenX,
+                                    tokenY: lastRowTokenY,
+                                    usd: lastRowUsd,
+                                    reward: reward,
+                                    timestamp: new Date(Number(z.timestamp) / 1000).toLocaleString(),
+                                });
+                                totalRewardPerAddress = totalRewardPerAddress + reward;
+                                count++;
+                                c++;
+                            });
+                            rows.push({
+                                id: count,
+                                sender: sender,
+                                pool: '',
+                                tokenX: '',
+                                tokenY: '',
+                                usd: '',
+                                reward: totalRewardPerAddress,
+                                timestamp: '',
+                            });
+                            totalRewards = totalRewards + totalRewardPerAddress;
+                            count++;
+                        });
+                    });
+                });
+
+                console.log({ rows });
+
+
 
                 res.status(200).json({
-                    data: data
+                    totalRewards,
+                    data:rows
                 });
             } catch (error) {
                 console.log(error);
